@@ -1,0 +1,5 @@
+# Saving here but will move to poetry when scaling the system, trying to install as less libs as possible
+instructor
+transformers # Add last version.
+openai
+....
