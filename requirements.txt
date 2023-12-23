@@ -1,5 +1,8 @@
-# Saving here but will move to poetry when scaling the system, trying to install as less libs as possible
+# Saving here but will move to poetry when scaling the system, trying to install as few libs as possible
+
 instructor
-transformers # Add last version.
+Jinja2
 openai
-....
+python-dotenv
+torch # TODO: Remove dependency on local torch installation for models accessed via API key services.
+transformers # Add last version.
