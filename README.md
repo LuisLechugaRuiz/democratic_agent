@@ -39,6 +39,6 @@ Here’s how it all comes together:
 
 We're on a mission to build an empowering ecosystem, a library that's the gateway to breakthroughs once deemed as mere fiction.
 
-Join the convo on our new Discord—discuss, connect, and collaborate with fellow pioneers.
+Join the conversation on our new Discord—discuss, connect, and collaborate with fellow pioneers.
 
 The future's knocking, and it's high time everyone gets a slice. Thanks for joining us on this incredible journey. 💖

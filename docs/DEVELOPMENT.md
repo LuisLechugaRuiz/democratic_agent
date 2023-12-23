@@ -41,11 +41,11 @@ We need to setup the right incentives (a credit system), where the users will ge
 
 As we are building a framework to run on any new model architecture the adoption of our framework means that we can have users sharing their GPUs by default as we provide lot of features (run any new model automatically, the system framework where the agent creates tool and use them, future events, automatic fine-tuning and personalized models....). This features make our framework very attractive, solving the actual pain of petals -> User adoption. Once that we start scaling it lot of users will be sharing GPU. Most of the time the GPUs are unused, with this mechanism everyone will have incentives to let other people use them (we can even have a store in the future to exchange the credits by bitcoins or other coins...).
 
-A new decentralized internet of LLMs is comming!
+A new decentralized internet of LLMs is coming!
 
 I have been investigating the petals framework and there are some limitations:
-- They have a custom logic, only some architectures are supported, this limits our possibility to run any new huggingface model. I'm investigating ways to generalize it, hopefully being able to run most of transformers architectures.
-- They save catche on server side, which limits the possibility of multiple users using the same transformer -> This is the main limitation IMO, has even when we can do the hard effort of solve the model abstractions this limitation will block multiple users sharing same architecture, we might need to find a good way to solve this along the way...
+- They have a custom logic, only some architectures are supported, this limits our possibility to run any new model available on Hugging Face. I'm investigating ways to generalize it, hopefully being able to run most of transformers architectures.
+- They save cache on server side, which limits the possibility of multiple users using the same transformer -> This is the main limitation IMO, has even when we can do the hard effort of solve the model abstractions this limitation will block multiple users sharing same architecture, we might need to find a good way to solve this along the way...
 
 Is not going to be an easy path, if we achieve the point where the ecosystem is adopted and most of the people select the option to contribute, then everyone would be able to run the strongest models even with small hardware, from their phones or other locations. The moment where LLMs become a commodity would be very close, as this would suppose the integration of most of the ongoing efforts.
 
@@ -59,11 +59,11 @@ Talk with Nestor, preparing a clear scope for demo.
 
 Two core ideas today:
 - Implement OpenAI API to ease development until we verify the full architecture.
-- Tool Execution means -> Executing code. This will be useful to automate direct tasks, but we need to move to next level of automation VLA (Visual Language Action), Visual Language Models combined with different actions, in this case a keyboard and mouse to be able to interact with any device. The planner should be able to determine if we should use the visual or code tools. There is a new super intersting paper: [CogAgent](https://arxiv.org/pdf/2312.08914.pdf) releasing a 18B VLM fine-tuned for visual agents, I can't run it on my RTX 4080, but I will try to find the best way to run it.
+- Tool Execution means -> Executing code. This will be useful to automate direct tasks, but we need to move to next level of automation VLA (Visual Language Action), Visual Language Models combined with different actions, in this case a keyboard and mouse to be able to interact with any device. The planner should be able to determine if we should use the visual or code tools. There is a new super interesting paper: [CogAgent](https://arxiv.org/pdf/2312.08914.pdf) releasing a 18B VLM fine-tuned for visual agents, I can't run it on my RTX 4080, but I will try to find the best way to run it.
 
 Refactored to run private models (Only OpenAI for now, but should be trivial to add other APIs). Started a future implementation to ensure that running different OpenSource LLMs doesn't crash the system.
 
-The implementation is naive at the moment. We are creating a new Chat() everytime we call each model, this function will call create_models at ModelsManager and it will stop all OSModels that are currently running. We should do better, but for this we need to calculate compatibility at start to ensure that the models are not running at the same time.
+The implementation is naive at the moment. We are creating a new Chat() every time we call each model, this function will call create_models at ModelsManager and it will stop all OSModels that are currently running. We should do better, but for this we need to calculate compatibility at start to ensure that the models are not running at the same time.
 
 
 ## --- 19 / 12 ---
@@ -89,7 +89,7 @@ Consider that a task can be achieved using very different methods depending on t
 Thinking if we should use "outlines" or "instructor" for our types... but none of them fits enough.
 
 instructor:
-- Doesn't provide tools format from functions (only pydantic classes....)
+- Doesn't provide tools format from functions (only ydantic classes....)
 
 outlines:
 - Provides the format but takes control over the model execution, which is not good at all...
