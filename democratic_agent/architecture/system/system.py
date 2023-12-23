@@ -1,27 +1,58 @@
-from typing import Callable
-from queue import Queue
+import argparse
+from collections import OrderedDict
+import json
+from time import sleep
+
 
 from democratic_agent.architecture.helpers import Request, RequestStatus, Step
 from democratic_agent.architecture.system.planner import Planner, PlanStatus
-from democratic_agent.architecture.system.tool_creator import ToolCreator
+
+# from democratic_agent.architecture.system.tool_creator import ToolCreator
 from democratic_agent.architecture.system.tool_executor import (
     ToolExecutor,
 )
-from democratic_agent.tools.tools_manager import ToolManager
-from democratic_agent.utils.process import Process
+from democratic_agent.tools.tools_manager import ToolsManager
+from democratic_agent.utils.helpers import colored, get_local_ip
+from democratic_agent.architecture.helpers.tmp_ips import (
+    DEF_ASSISTANT_IP,
+    DEF_REGISTRATION_PORT,
+    DEF_SYSTEM_PORT,
+)
+from democratic_agent.utils.communication_protocols import Client
+from democratic_agent.utils.communication_protocols.actions.action_server import (
+    ActionServer,
+    ServerGoalHandle,
+)
 
 
 class System:
     """Router for the system, completing the request from the user."""
 
-    def __init__(self):
-        self.tool_creator = ToolCreator()  # TODO: Next version.
+    def __init__(
+        self,
+        user_name: str,
+        assistant_ip: str,
+        registration_port: int,
+        system_port: int,
+    ):
+        # self.tool_creator = ToolCreator()  # TODO: Next version.
 
-        self.tool_manager = ToolManager()
-        self.requests: Queue[Request] = Queue()
+        self.user_name = user_name
+        self.tools_manager = ToolsManager()
+        self.requests: OrderedDict[str, Request] = OrderedDict()
+
+        # Communication
+        self.system_ip = get_local_ip()
+        self.system_action_server = ActionServer(
+            server_address=f"tcp://{self.system_ip}:{system_port}",
+            callback=self.execute_request,
+            action_class=Request,
+        )
+        self.register_with_assistant(assistant_ip, registration_port, system_port)
 
     def add_request(self, request: Request):
-        self.requests.put(request)
+        # In case request already exists just update it.
+        self.requests[request.get_id()] = request
 
     # Implement here FuncSearch -> https://github.com/google-deepmind/funsearch adapted to our case -> Evaluator is a LLM evaluating criterias depending on the feedback received from using the tool.
     def create_tool(self, tool_name: str, tool_description: str, step: str):
@@ -29,84 +60,138 @@ class System:
         # self.tool_creator.create_test
 
         new_function = self.tool_creator.call(tool_name, tool_description)
-        self.tool_manager.save_tool(new_function, tool_name)
+        self.tools_manager.save_tool(new_function, tool_name)
 
         approved = True  # It will be False, but setting to True as test is not implemented yet.
         while not approved:
             pass
             # self.tool_manager.test_tool(tool_name)
 
-    def run(self):
-        while not self.requests.empty():
-            request = self.requests.get()
-            request.update_status(
-                RequestStatus.IN_PROGRESS, feedback="Starting to plan."
-            )
+    def execute_request(self, server_goal_handle: ServerGoalHandle):
+        self.current_goal_handle = server_goal_handle
+        request: Request = server_goal_handle.action
+        print(colored("\n--- Request ---\n", "yellow"))
+        print(request)
+        self.update_request(
+            request,
+            status=RequestStatus.IN_PROGRESS,
+            feedback="Starting to plan.",
+        )
 
-            # Start other modules with empty conversation and add request to system message.
-            planner = Planner(request)
-            tool_executor = ToolExecutor(request)
+        # Start other modules with empty conversation and add request to system message.
+        planner = Planner(request, get_user_feedback=self.get_user_feedback)
+        tool_executor = ToolExecutor(request)
 
-            step = None
-            finished = False
-            while not finished:  # TODO: Add max number of iterations.
-                plan = planner.plan(previous_step=step)
-                status = plan.get_status()
-                if status == PlanStatus.FAILURE:
-                    # We need to notify to user OR create our own tool (On next version!!).
-                    request.update_status(
-                        status=RequestStatus.FAILURE,
-                        feedback="Couldn't find a tool to execute.",
-                    )
-                    self.update_request(request)
-                    finished = True
-                elif status == PlanStatus.SUCCESS:
-                    request.update_status(
-                        status=RequestStatus.SUCCESS, feedback=plan.summary
-                    )
-                    self.update_request(request)
-                    finished = True
-                else:
-                    request.update_status(
-                        status=RequestStatus.IN_PROGRESS, feedback=plan.summary
-                    )
-                    step = Step(step=plan.step, tools=plan.selected_tools)
-                    functions = []
-                    for tool in step.tools:
-                        functions.append(self.tool_manager.get_tool(tool.name))
+        step = None
+        finished = False
+        while not finished:  # TODO: Add max number of iterations.
+            plan = planner.plan(previous_step=step)
+            status = plan.get_status()
+            if status == PlanStatus.FAILURE:
+                # We need to notify to user OR create our own tool (On next version!!).
+                self.update_request(
+                    request,
+                    status=RequestStatus.FAILURE,
+                    feedback="Couldn't find a suitable tool for the request.",
+                )
+                finished = True
+            elif status == PlanStatus.SUCCESS:
+                self.update_request(
+                    request, status=RequestStatus.SUCCESS, feedback=plan.summary
+                )
+                finished = True
+            else:
+                self.update_request(
+                    request, status=RequestStatus.IN_PROGRESS, feedback=plan.summary
+                )
+                step = Step(step=plan.summary, tools=plan.tools)
+                functions = []
+                for tool in step.tools:
+                    functions.append(self.tools_manager.get_tool(tool.name))
 
-                    # Update the tools based on the execution and the feedback.
-                    step.tools = tool_executor.call(functions, step=step.step)
-        return self.requests
+                # Update the tools based on the execution and the feedback.
+                step.tools = tool_executor.call(functions, step=step.step)
 
-    def store_update_request_command(self, update_request: Callable):
-        self.update_request = update_request
+    # TODO: ADAPT ME TO THE ACTION SERVER.
+    def get_user_feedback(self, request: Request):
+        # Update request status
+        request.update_status(status=RequestStatus.WAITING_USER_FEEDBACK)
+        self.requests[request.get_id()] = request
+
+        # Send feedback to user
+        self.current_goal_handle.action = request
+        self.current_goal_handle.send_feedback()
+
+        # Wait for feedback
+        while (
+            self.requests[request.get_id()].get_status()
+            == RequestStatus.WAITING_USER_FEEDBACK
+        ):
+            sleep(1)
+        # Update request
+        request = self.requests[request.get_id()]
+        return request.get_feedback()
+
+    def update_request(self, request: Request, status: RequestStatus, feedback: str):
+        request.update_status(status=status, feedback=feedback)
+        self.requests[request.get_id()] = request
+        self.current_goal_handle.action = request
+
+        if status == RequestStatus.SUCCESS:
+            self.current_goal_handle.set_completed()
+        elif status == RequestStatus.FAILURE:
+            self.current_goal_handle.set_aborted()
+        self.current_goal_handle.send_feedback()
+
+    # TODO: receive ack.
+    def register_with_assistant(
+        self, assistant_ip: str, registration_port: int, system_port: int
+    ):
+        print("REGISTERING WITH ASSISTANT")
+        client = Client(f"tcp://{assistant_ip}:{registration_port}")
+        # TODO: Create class
+        user_info = {
+            "user_name": self.user_name,
+            "system_ip": get_local_ip(),
+            "system_port": system_port,
+        }
+        client.send(json.dumps(user_info))  # Send registration info to Assistant
+        client.close()
 
 
 def main():
-    system = System()
-    system_process = Process(
-        input_port=8888,
-        output_port=8887,
-        run_command=system.run,
-        receive_message=system.add_request,
+    # TODO: Get USER FROM CONFIG!
+    parser = argparse.ArgumentParser(description="User configuration script.")
+    parser.add_argument("-n", "--name", default="Luis", help="User name")
+    parser.add_argument(
+        "-s", "--system_port", type=int, default=DEF_SYSTEM_PORT, help="System port"
     )
-    system.store_update_request_command(system_process.send_message)
-    system_process.run()
+    parser.add_argument(
+        "-r",
+        "--registration_port",
+        type=int,
+        default=DEF_REGISTRATION_PORT,
+        help="Registration port",
+    )
+    parser.add_argument(
+        "-a",
+        "--assistant_ip",
+        type=str,
+        default=DEF_ASSISTANT_IP,
+        help="Assistant IP",
+    )
 
-    # TODO: Create proper tests to benchmark every part of the system.
-    # def tests():
-    # system = System()
-    # test_0 = "Find who is the currenlty the richest person in the world, today is (2023-12-14)."  # Send date as part of the prompt?
-    # test_1 = "Get Tesla historical stocks from 2023-01-01 to 2023-12-14."
-    # test_2 = "Tell me the PIB of Spain in 2023."
-    # tests = [test_0, test_1, test_2]
-    # for test in tests:
-    #    print(f"--- Test: {test} ---")
-    # feedback = system.process_request(test) -> Will be used after adding reasoner!
-    #    feedback = system.execute_tools(test)
-    #    print(feedback)
-    # pass
+    args = parser.parse_args()
+
+    # When user starts initialize his system.
+    system = System(
+        user_name=args.name,
+        assistant_ip=args.assistant_ip,
+        registration_port=args.registration_port,
+        system_port=args.system_port,
+    )
+    while True:
+        sleep(0.1)
 
 
 if __name__ == "__main__":

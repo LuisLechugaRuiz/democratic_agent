@@ -1,5 +1,6 @@
 # Saving here but will move to poetry when scaling the system, trying to install as less libs as possible
-instructor
 transformers # Add last version.
 openai
-....
+python-dotenv
+pydantic # upgrade pydantic to latest version.
+zmq # User for the first version of our communication protocols

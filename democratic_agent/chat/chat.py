@@ -34,61 +34,74 @@ class Chat(Generic[T]):
         system_message = self.load_prompt(
             "system", self.module_name, system_prompt_kwargs
         )
-        if containers:
-            json_kwargs = {"schema": PydanticParser.get_json_schema(containers)}
-            system_message += "\n" + self.load_prompt("json", args=json_kwargs)
-            self.containers = containers
-            self.response_format = "json_object"
-        else:
-            self.containers = []
-            self.response_format = "text"
+        # TODO: Deprecate Pydantic containers for functions.
+        # if containers:
+        #     json_kwargs = {"schema": PydanticParser.get_json_schema(containers)}
+        #     system_message += "\n" + self.load_prompt("json", args=json_kwargs)
+        #     self.response_format = "json_object"
+        # else:
+        #     self.response_format = "text"
+        # self.containers = containers
 
         self.conversation = Conversation(module_name, system_message)
 
     def add_tool_feedback(self, id: str, message: str):
         self.conversation.add_tool_message(id=id, message=message)
 
+    def call(self, functions: List[Callable] = []):
+        """Call the model to get a response."""
+
+        if self.model is None:
+            self.load_model()
+
+        function_schemas = []
+        for function in functions:
+            function_schemas.append(PydanticParser.get_function_schema(function))
+
+        response = self.model.get_response(
+            conversation=self.conversation,
+            functions=function_schemas,
+        )
+        if function_schemas:
+            tool_calls = response.tool_calls
+            if tool_calls is not None:
+                # In case we are sending tools we should save them in the traces as OpenAI doesn't include them on prompt.
+                self.conversation.add_assistant_tool_message(tool_calls)
+                return tool_calls
+
+        response = response.content
+        self.conversation.add_assistant_message(response)
+        return response
+
+    def edit_system_message(self, system_prompt_kwargs: Dict[str, Any]):
+        """Edit the system message."""
+        system_message = self.load_prompt(
+            "system", self.module_name, system_prompt_kwargs
+        )
+        self.conversation.edit_system_message(system_message)
+        # TODO: Deprecate Pydantic containers for functions.
+        # if self.containers:
+        #     json_kwargs = {"schema": PydanticParser.get_json_schema(self.containers)}
+        #     system_message += "\n" + self.load_prompt("json", args=json_kwargs)
+        #     self.response_format = "json_object"
+        # else:
+        #     self.response_format = "text"
+
     def get_response(
         self,
-        prompt_kwargs: dict,
+        prompt_kwargs: Dict[str, Any],
         functions: List[Callable] = [],
-        retries: int = 2,  # TODO: Move to cfg
-        fix_retries: int = 0,  # TODO: Move to cfg and solve me..
+        user_name: Optional[str] = None,
     ) -> str | List[T] | List[ChatCompletionMessageToolCall]:
         """Get a reponse from the model, can be a single string or a list of objects."""
 
         if self.model is None:
             self.load_model()
 
-        if functions and self.containers:
-            raise Exception(
-                "So far we can ask for tools explicitely or for a JSON format to transform the response into containers, but not both!!"
-            )
-
         prompt = self.load_prompt("user", self.module_name, prompt_kwargs)
-        function_schemas = []
-        for function in functions:
-            function_schemas.append(PydanticParser.get_function_schema(function))
-            # In case we are sending tools we should save them in the traces as OpenAI does it internally.
 
-        self.conversation.add_user_message(prompt)
-        response = self.model.get_response(
-            conversation=self.conversation,
-            functions=function_schemas,
-            response_format=self.response_format,
-        )
-        self.conversation.add_assistant_message(response)
-
-        if self.containers:
-            parser = PydanticParser(model=self.model)
-            return parser.parse_response(
-                conversation=self.conversation,
-                response=response,
-                containers=self.containers,
-                retries=retries,
-                fix_retries=fix_retries,
-            )
-        return response
+        self.conversation.add_user_message(prompt, user_name)
+        return self.call(functions)
 
     def load_model(self):
         self.model = ModelsManager().create_model(self.module_name)

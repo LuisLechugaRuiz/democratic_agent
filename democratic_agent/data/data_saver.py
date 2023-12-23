@@ -13,7 +13,7 @@ class DataSaver:
         self.module_name = module_name
         self.traces_path = Path(__file__).parent / "traces" / module_name
         self.current_file = self.get_current_file()
-        self.max_lines = 5000
+        self.max_lines = 50000
 
     def get_current_file(self):
         if not self.traces_path.exists():

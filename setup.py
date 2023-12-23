@@ -11,6 +11,6 @@ setup(
     packages=find_packages(),
     license="MIT",
     classifiers=[],
-    install_requires=[],
+    install_requires=open("requirements.txt").read().splitlines(),
     python_requires=">=3.6",
 )

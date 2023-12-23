@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 import base64
 from openai import OpenAI
 from openai._types import NOT_GIVEN
-from openai.types.chat import ChatCompletionMessageToolCall, ChatCompletionToolParam
+from openai.types.chat import ChatCompletionMessageToolCall, ChatCompletionToolParam, ChatCompletionMessage
 from dotenv import load_dotenv
 
 from democratic_agent.chat.conversation import Conversation
@@ -24,7 +24,7 @@ class OpenAIModel(Model):
         functions: List[Dict[str, Any]] = [],
         response_format: str = "text",  # or json_object.
         temperature: float = 0.7,
-    ) -> str:
+    ) -> ChatCompletionMessage:
         if functions:
             tools_openai: List[ChatCompletionToolParam] = functions
         else:
@@ -39,9 +39,7 @@ class OpenAIModel(Model):
             tools=tools_openai,
             # stream=False,  # TODO: Address SET TO TRUE for specific cases - USER.
         )
-        if functions:
-            return response.choices[0].message.tool_calls
-        return response.choices[0].message.content
+        return response.choices[0].message
 
     def get_multi_modal_message(
         prompt: str,

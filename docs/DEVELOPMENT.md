@@ -144,3 +144,23 @@ Next steps:
 2. Implement the vector database: The decision is very important. I have been working previously with REDISS and WEAVIATE, but QDRANT looks like a good alternative. Needs to be OS and have a big team working on improving the capabilities, also have the possibility to search by metadata and use a interesting algorithm (HNSW?), lets check performance from existing literature as this is one of the most important topics. I will also start designing the user - chatbot interaction where we will store info from the user that later will be useful for future tasks and a more personal treatment.
 
 One of the limitations of current approach is that chatbot is slow, asking to GPT-4 to use tools increase the latency, to be investigated as an approach of streaming to get the response from user and later composing the JSON might be very interesting for our case. More and better comming soon, this is starting to look quite good!
+
+
+# --- 23/12 ---
+Back on Spain. Preparing the demo before 28/12.
+
+Adjustments:
+Requests exchange between user and system. The requests will be stored on a Dict at user and show on prompt + clean-up every-time we are talking with the user.
+Taking this approach as we are using a Conversation and it will maintain the previous requests (and show any new status if neeeded).
+
+Next:
+Testing closed-loop user - system.
+First implementation of databased starting from human (user).
+Refine implementation and once is ready implement tools and previous tasks.
+Add GMAIL event and tool to send email / modify calendar / send message (whatsapp?)
+Prepare demo.
+
+About tools vs JSON format:
+
+So far we use JSON to ask for specific data to fill a pydantic class. But this might be limiting as the model will always answer us with ONE option.
+But we can make it more flexible moving to tools. I.e: The planner can choose 3 things -> Execute tool (from selected tools), Find tools, Search info on database, Communicate with user.

@@ -130,6 +130,7 @@ class PydanticParser(Generic[T]):
                 start += 1
             except Exception as e:
                 print(f"Failing parsing with error: {e}")
+                break
 
         name = pydantic_object.__name__
         msg = f"Failed to parse {name} from completion {text}."
@@ -193,6 +194,7 @@ class PydanticParser(Generic[T]):
         params = {
             name: (param.annotation, ...)
             for name, param in inspect.signature(fn).parameters.items()
+            if name != 'self'  # Skip the 'self' parameter
         }
 
         model = create_model(f"{fn.__name__}Model", **params)

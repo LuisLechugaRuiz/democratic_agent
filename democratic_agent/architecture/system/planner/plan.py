@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 from typing import List
 
 from democratic_agent.chat.parser.loggable_base_model import LoggableBaseModel
@@ -12,21 +12,12 @@ class PlanStatus(Enum):
 
 
 class Plan(LoggableBaseModel):
-    summary: str = Field(description="Summary of the request's current status.")
-    task_completed: bool = Field(
-        description="Should be False if there is a need to execute any tool. Set to True only if the task is already complete with no further action required."
-    )
-    step: str = Field(description="Next step to solve the problem")
-    potential_tools: List[str] = Field(
-        description="Descriptions of potential tools to be used for database searches in the current step."
-    )
-    selected_tools: List[str] = Field(
-        description="Specific tools chosen from the database search results to complete the current step."
-    )
-    _status: PlanStatus = PrivateAttr(default=PlanStatus.IN_PROGRESS)
+    summary: str = Field(description="The step that should be accomplish next or the final result of the plan.")
+    status: PlanStatus = Field(description="Tool status", default=PlanStatus.IN_PROGRESS)
+    tools: List[str] = Field(description="The name of the tools that should be used to accomplish the step.", default=[])
 
     def get_status(self):
-        return self._status
+        return self.status
 
     def update_status(self, status: PlanStatus):
-        self._status = status
+        self.status = status

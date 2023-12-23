@@ -1,4 +1,4 @@
-import pywhatkit
+# import pywhatkit
 
 
 def send_whatsapp_message(contact_name: str, message: str):
