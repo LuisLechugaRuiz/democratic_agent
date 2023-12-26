@@ -3,7 +3,6 @@ from collections import OrderedDict
 import json
 from time import sleep
 
-
 from democratic_agent.architecture.helpers import Request, RequestStatus, Step
 from democratic_agent.architecture.system.planner import Planner, PlanStatus
 
@@ -15,9 +14,10 @@ from democratic_agent.tools.tools_manager import ToolsManager
 from democratic_agent.utils.helpers import colored, get_local_ip
 from democratic_agent.architecture.helpers.tmp_ips import (
     DEF_ASSISTANT_IP,
-    DEF_REGISTRATION_PORT,
+    DEF_CLIENT_PORT,
     DEF_SYSTEM_PORT,
 )
+from democratic_agent.architecture.helpers.topics import DEF_REGISTRATION_SERVER
 from democratic_agent.utils.communication_protocols import Client
 from democratic_agent.utils.communication_protocols.actions.action_server import (
     ActionServer,
@@ -32,23 +32,29 @@ class System:
         self,
         user_name: str,
         assistant_ip: str,
-        registration_port: int,
         system_port: int,
     ):
-        # self.tool_creator = ToolCreator()  # TODO: Next version.
+        self.system_ip = get_local_ip()
 
+        # self.tool_creator = ToolCreator()  # TODO: Next version.
         self.user_name = user_name
         self.tools_manager = ToolsManager()
         self.requests: OrderedDict[str, Request] = OrderedDict()
 
-        # Communication
-        self.system_ip = get_local_ip()
+        self.planner = Planner(
+            get_user_feedback=self.get_user_feedback,
+            user_name=user_name,
+        )
+        self.tool_executor = ToolExecutor(
+            user_name=user_name,
+        )
+        # Communication - TODO: Centralize comms at assistant.
         self.system_action_server = ActionServer(
             server_address=f"tcp://{self.system_ip}:{system_port}",
             callback=self.execute_request,
             action_class=Request,
         )
-        self.register_with_assistant(assistant_ip, registration_port, system_port)
+        self.register_with_assistant(assistant_ip, system_port)
 
     def add_request(self, request: Request):
         # In case request already exists just update it.
@@ -77,15 +83,13 @@ class System:
             status=RequestStatus.IN_PROGRESS,
             feedback="Starting to plan.",
         )
-
-        # Start other modules with empty conversation and add request to system message.
-        planner = Planner(request, get_user_feedback=self.get_user_feedback)
-        tool_executor = ToolExecutor(request)
+        self.tool_executor.update_request(request)
+        self.planner.update_request(request)
 
         step = None
         finished = False
         while not finished:  # TODO: Add max number of iterations.
-            plan = planner.plan(previous_step=step)
+            plan = self.planner.plan(previous_step=step)
             status = plan.get_status()
             if status == PlanStatus.FAILURE:
                 # We need to notify to user OR create our own tool (On next version!!).
@@ -110,9 +114,9 @@ class System:
                     functions.append(self.tools_manager.get_tool(tool.name))
 
                 # Update the tools based on the execution and the feedback.
-                step.tools = tool_executor.call(functions, step=step.step)
+                step.tools = self.tool_executor.call(functions, step=step.step)
 
-    # TODO: ADAPT ME TO THE ACTION SERVER.
+    # TODO: FIX ME! NOT WORKING PROPERLY THE RECEPTION.
     def get_user_feedback(self, request: Request):
         # Update request status
         request.update_status(status=RequestStatus.WAITING_USER_FEEDBACK)
@@ -145,17 +149,21 @@ class System:
 
     # TODO: receive ack.
     def register_with_assistant(
-        self, assistant_ip: str, registration_port: int, system_port: int
+        self,
+        assistant_ip: str,
+        system_port: int,
     ):
         print("REGISTERING WITH ASSISTANT")
-        client = Client(f"tcp://{assistant_ip}:{registration_port}")
+        client = Client(f"tcp://{assistant_ip}:{DEF_CLIENT_PORT}")
         # TODO: Create class
         user_info = {
             "user_name": self.user_name,
-            "system_ip": get_local_ip(),
-            "system_port": system_port,
+            "system_ip": self.system_ip,
+            "system_request_port": system_port,
         }
-        client.send(json.dumps(user_info))  # Send registration info to Assistant
+        client.send(
+            topic=DEF_REGISTRATION_SERVER, message=json.dumps(user_info)
+        )  # Send registration info to Assistant
         client.close()
 
 
@@ -164,30 +172,21 @@ def main():
     parser = argparse.ArgumentParser(description="User configuration script.")
     parser.add_argument("-n", "--name", default="Luis", help="User name")
     parser.add_argument(
-        "-s", "--system_port", type=int, default=DEF_SYSTEM_PORT, help="System port"
-    )
-    parser.add_argument(
-        "-r",
-        "--registration_port",
-        type=int,
-        default=DEF_REGISTRATION_PORT,
-        help="Registration port",
-    )
-    parser.add_argument(
         "-a",
         "--assistant_ip",
         type=str,
         default=DEF_ASSISTANT_IP,
         help="Assistant IP",
     )
-
+    parser.add_argument(
+        "-s", "--system_port", type=int, default=DEF_SYSTEM_PORT, help="System port"
+    )
     args = parser.parse_args()
 
     # When user starts initialize his system.
     system = System(
         user_name=args.name,
         assistant_ip=args.assistant_ip,
-        registration_port=args.registration_port,
         system_port=args.system_port,
     )
     while True:

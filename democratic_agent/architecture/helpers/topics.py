@@ -1,4 +1,5 @@
 DEF_USER_MESSAGE = "user_message"
 DEF_ASSISTANT_MESSAGE = "assistant_message"
-DEF_ASSISTANT_REQUEST = "assistant_request"
-DEF_SYSTEM_REQUEST_UPDATE = "system_request_update"
+DEF_SEARCH_DATABASE = "search_database"
+DEF_STORE_DATABASE = "store_database"
+DEF_REGISTRATION_SERVER = "registration_server"
