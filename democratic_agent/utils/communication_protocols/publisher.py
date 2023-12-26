@@ -14,3 +14,6 @@ class Publisher:
     def close(self):
         self.socket.close()
         self.context.term()
+
+    def __del__(self):
+        self.close()

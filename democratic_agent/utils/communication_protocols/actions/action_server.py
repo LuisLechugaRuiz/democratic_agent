@@ -64,9 +64,6 @@ class ActionServer:
             if socks.get(self.socket) == zmq.POLLIN:
                 message = self.socket.recv_string()
 
-                # Acknowledge the goal
-                # self.socket.send_string("ACK") DO WE NEED THIS?
-
                 # Create a GoalHandle and enqueue it
                 goal_handle = ServerGoalHandle.from_json(
                     message, self.action_class, self.publish_feedback
@@ -93,3 +90,6 @@ class ActionServer:
     def close(self):
         self.socket.close()
         self.context.term()
+
+    def __del__(self):
+        self.close()

@@ -42,7 +42,7 @@ class UserUI:
                         f"{msg.user_name}", curses.color_pair(color_pair_number)
                     )
                     # Add the rest of the message in the default color
-                    chat_win.addstr(f": {msg.message}\n")
+                    chat_win.addstr(f": {msg.message}\n\n")
                 last_displayed_msg_index = len(self.user.incoming_messages)
 
             chat_win.refresh()

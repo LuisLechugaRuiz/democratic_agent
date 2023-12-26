@@ -55,3 +55,6 @@ class ActionClient:
         # Close sockets and context
         self.socket.close()
         self.context.term()
+
+    def __del__(self):
+        self.close()

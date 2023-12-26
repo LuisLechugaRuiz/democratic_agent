@@ -22,3 +22,16 @@ def get_local_ip():
     except Exception as e:
         print(f"Error obtaining local IP: {e}")
         return None
+
+
+def get_free_port():
+    try:
+        # Create a dummy socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Bind to an address with port 0
+            s.bind(("", 0))
+            # Get the assigned port and return it
+            return s.getsockname()[1]
+    except Exception as e:
+        print(f"Error obtaining a free port: {e}")
+        return None
