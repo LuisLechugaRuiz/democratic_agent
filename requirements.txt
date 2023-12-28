@@ -4,4 +4,9 @@ openai
 python-dotenv
 pydantic # upgrade pydantic to latest version.
 zmq # User for the first version of our communication protocols
-# google_auth_oauthlib
+google-auth-oauthlib
+google-api-python-client
+jinja2
+weaviate-client
+tzlocal
+# python3-tk python3-dev for pywhatkit

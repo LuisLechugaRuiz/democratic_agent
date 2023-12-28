@@ -106,9 +106,7 @@ class ToolsManager:
                 )
                 print(f"{function.__name__}({args_string}): {response}")
             except Exception as e:
-                raise Exception(
-                    f"Error while executing function {function_name} with arguments {call_arguments_dict}. Error: {e}"
-                )
+                response = f"Error while executing function {function_name} with arguments {call_arguments_dict}. Error: {e}"
             if chat:
                 chat.add_tool_feedback(id=tool_call.id, message=response)
             tools_result.append(Tool(name=function_name, feedback=response))

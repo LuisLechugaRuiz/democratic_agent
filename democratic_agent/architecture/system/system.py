@@ -2,7 +2,6 @@ import argparse
 from collections import OrderedDict
 import json
 from time import sleep
-from typing import Callable, List
 
 from democratic_agent.architecture.helpers import Request, RequestStatus
 from democratic_agent.architecture.system.executor import Executor
@@ -13,6 +12,7 @@ from democratic_agent.architecture.helpers.tmp_ips import (
     DEF_ASSISTANT_IP,
     DEF_CLIENT_PORT,
     DEF_SYSTEM_PORT,
+    DEF_ACTION_SERVER_PORT,
 )
 from democratic_agent.architecture.helpers.topics import DEF_REGISTRATION_SERVER
 from democratic_agent.utils.communication_protocols import Client
@@ -45,7 +45,8 @@ class System:
         self.executor.register_tools()
         # Communication - TODO: Centralize comms at assistant - connect to ActionServer Broker.
         self.system_action_server = ActionServer(
-            server_address=f"tcp://{self.system_ip}:{system_port}",
+            broker_address=f"tcp://{assistant_ip}:{DEF_ACTION_SERVER_PORT}",
+            topic=f"{user_name}_system_action_server",  # TODO: USE USER ID
             callback=self.execute_request,
             action_class=Request,
             update_callback=self.update_request_callback,
@@ -118,11 +119,9 @@ class System:
     ):
         print("REGISTERING WITH ASSISTANT")
         client = Client(f"tcp://{assistant_ip}:{DEF_CLIENT_PORT}")
-        # TODO: Create class
+        # TODO: Create class and add uuid.
         user_info = {
             "user_name": self.user_name,
-            "system_ip": self.system_ip,
-            "system_request_port": system_port,
         }
         client.send(
             topic=DEF_REGISTRATION_SERVER, message=json.dumps(user_info)

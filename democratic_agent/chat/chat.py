@@ -80,7 +80,6 @@ class Chat(Generic[T]):
             functions.extend(self.functions)
         for function in functions:
             function_schemas.append(PydanticParser.get_function_schema(function))
-
         response = self.model.get_response(
             conversation=self.conversation,
             functions=function_schemas,
