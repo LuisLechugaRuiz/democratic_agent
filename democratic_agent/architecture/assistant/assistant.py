@@ -6,11 +6,12 @@ from queue import Queue
 
 from democratic_agent.architecture.helpers.tmp_ips import (
     DEF_ASSISTANT_IP,
-    DEF_ASSISTANT_PORT,
     DEF_PUB_PORT,
     DEF_SUB_PORT,
     DEF_CLIENT_PORT,
     DEF_SERVER_PORT,
+    DEF_ACTION_CLIENT_PORT,
+    DEF_ACTION_SERVER_PORT,
 )  # TODO: REMOVE AND GET THIS DYNAMICALLY
 from democratic_agent.architecture.helpers.topics import (
     DEF_ASSISTANT_MESSAGE,
@@ -32,6 +33,7 @@ from democratic_agent.utils.communication_protocols import (
     Client,
     Server,
     ActionClient,
+    ActionBroker,
     GoalHandle,
 )
 
@@ -66,6 +68,11 @@ class Assistant:
         self.broker = Broker(
             ip=assistant_ip, client_port=DEF_CLIENT_PORT, server_port=DEF_SERVER_PORT
         )
+        self.action_broker = ActionBroker(
+            ip=assistant_ip,
+            client_port=DEF_ACTION_CLIENT_PORT,
+            server_port=DEF_ACTION_SERVER_PORT,
+        )
 
         self.assistant_message_publisher = Publisher(
             address=f"tcp://{assistant_ip}:{DEF_SUB_PORT}",
@@ -97,9 +104,11 @@ class Assistant:
     def handle_registration(self, message):
         """Register user creating a new action client connected to user's system"""
 
+        # TODO: RECEIVE HERE!! THE USER UUID!
         user_info = json.loads(message)
         self.system_action_clients[user_info["user_name"]] = ActionClient(
-            server_address=f"tcp://{user_info['system_ip']}:{user_info['system_request_port']}",
+            broker_address=f"tcp://{self.assistant_ip}:{DEF_ACTION_CLIENT_PORT}",
+            topic=f"{user_info['user_name']}_system_action_server",
             callback=self.update_request,
             action_class=Request,
         )
@@ -120,7 +129,10 @@ class Assistant:
     def user_message_callback(self, user_message: str):
         # Save user message in a queue.
         message = UserMessage.from_json(user_message)
-        print(f"User {message.user_name} message: {message.message}")
+        print(
+            colored(f"User {message.user_name}: ", "red")
+            + f"message: {message.message}"
+        )
         self.user_messages.put(message)
 
         # Broadcast to all users
@@ -164,7 +176,7 @@ class Assistant:
         Returns:
             str
         """
-        print(f'{colored("Assistant:", "red")} {message}')
+        print(f'{colored("Assistant:", "blue")} {message}')
         assistant_message = UserMessage(user_name="Aware", message=message)
         self.broadcast_message(assistant_message.to_json())
         return "Message sent."
@@ -180,13 +192,13 @@ class Assistant:
         Returns:
             str
         """
-        data = self.database_clients[user_name].send(
-            topic=f"{user_name}_{DEF_SEARCH_DATABASE}", message=query
-        )
-        # data = input(
-        #     f"Query: {query}, please add the info for testing until the database is implemented: "
-        # )
-        return f"Search returned: {data}"
+        try:
+            data = self.database_clients[user_name].send(
+                topic=f"{user_name}_{DEF_SEARCH_DATABASE}", message=query
+            )
+            return f"Search returned: {data}"
+        except Exception as e:
+            return f"Error searching: {e}"
 
     def store_user_info(self, user_name: str, info: str):
         """
