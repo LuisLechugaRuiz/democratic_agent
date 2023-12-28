@@ -194,7 +194,7 @@ class PydanticParser(Generic[T]):
         params = {
             name: (param.annotation, ...)
             for name, param in inspect.signature(fn).parameters.items()
-            if name != 'self'  # Skip the 'self' parameter
+            if name != "self"  # Skip the 'self' parameter
         }
 
         model = create_model(f"{fn.__name__}Model", **params)
@@ -210,25 +210,3 @@ class PydanticParser(Generic[T]):
             },
         }
         return function_info
-
-
-def main():
-    test = """""
-        Plan": {
-            "summary": "Identify the user's preferred communication method with their mum to send a message about delayed arrival.",
-            "step": "Search for potential tools that could be used to identify the user's preferred communication method with their mum.",
-            "potential_tools": [
-                "User's contact preferences database lookup",
-                "Communication platform API (for SMS, email, messaging app)",
-                "User's personal assistant data access",
-            ],
-            "task_completed": False,
-        }
-    }"""
-    from democratic_agent.architecture.system.planner.plan import Plan
-
-    print("RESULT:", PydanticParser.parse(test, Plan))
-
-
-if __name__ == "__main__":
-    main()

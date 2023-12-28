@@ -26,6 +26,12 @@ class DatabaseManager:
                 callback=self.store,
             )
 
+    def search_tool(self, query: str):
+        search_result = self.database.search_tool(query=query)
+        if search_result is None:
+            return None
+        return search_result[0]
+
     def search(self, query: str):
         search_result = self.database.search(user_name=self.name, query=query)
         if search_result is None:
@@ -38,4 +44,8 @@ class DatabaseManager:
 
     def store(self, info: str):
         self.database.store(user_name=self.name, info=info)
+        return "OK"
+
+    def store_tool(self, name: str, description: str):
+        self.database.store_tool(name=name, description=description)
         return "OK"

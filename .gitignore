@@ -6,6 +6,7 @@ dist/
 *.egg-info/
 .env
 **/data/traces/*
+**/tools/private_data/*
 
 # Ignore events for now.
 **/events/**

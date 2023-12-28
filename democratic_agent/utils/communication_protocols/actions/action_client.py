@@ -51,6 +51,16 @@ class ActionClient:
                     ]:
                         del self.active_goals[update.goal_id]
 
+    def update_goal(self, goal_handler: GoalHandle):
+        if goal_handler.goal_id not in self.active_goals:
+            raise ValueError("Goal ID does not exist")
+
+        # Format the update message
+        update_message = f"update {GoalHandle.to_json(goal_handler)}"
+
+        # Send the update message
+        self.socket.send_string(update_message)
+
     def close(self):
         # Close sockets and context
         self.socket.close()

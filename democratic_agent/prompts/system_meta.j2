@@ -1,12 +1,18 @@
 {{ instruction }}
 
-This is the info stored in the memory, you can update it by calling update_short_term_memory() with the new info. 
-Remember to include all the details as the memory will be overwritten with the new info.
+As a super intelligent AI you can control your own memory.
+For this you have two types of memory, the short term memory and the long term memory.
+
 --- SHORT TERM MEMORY ---
+This is the short term memory that you stored on previous iterations:
 {{ short_term_memory }}
+
+You should ensure that all the relevant details for the conversation are stored properly in the short term memory as the conversation will be trimmed after {{ conversation_left_tokens }} tokens.
+You can update the short term memory by calling update_short_term_memory(), the existing info will be overwritten with the new info.
 ---
 
-This is the most similar info retrieved comparing the latest message in the conversation with the info stored in the long term memory.
-You can store or retrieve any special details from the long term memory by calling store_long_term_memory() or retrieve_long_term_memory().
 --- LONG TERM MEMORY ---
+This is the most similar info retrieved comparing the latest message in the conversation with the info stored in the long term memory:
 {{ retrieved_data }}
+
+You can store (using store_long_term_memory()) or retrieve (using retrieve_long_term_memory()) specific long term memory info.

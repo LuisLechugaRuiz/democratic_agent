@@ -64,14 +64,20 @@ class Chat(Generic[T]):
     def add_tool_feedback(self, id: str, message: str):
         self.conversation.add_tool_message(id=id, message=message)
 
-    def call(self, functions: List[Callable] = []):
+    def call(
+        self,
+        functions: List[Callable] = [],
+        add_default_functions=True,
+        save_assistant_message=True,
+    ):
         """Call the model to get a response."""
 
         if self.model is None:
             self.load_model()
 
         function_schemas = []
-        functions.extend(self.functions)
+        if add_default_functions:
+            functions.extend(self.functions)
         for function in functions:
             function_schemas.append(PydanticParser.get_function_schema(function))
 
@@ -83,11 +89,13 @@ class Chat(Generic[T]):
             tool_calls = response.tool_calls
             if tool_calls is not None:
                 # In case we are sending tools we should save them in the traces as OpenAI doesn't include them on prompt.
-                self.conversation.add_assistant_tool_message(tool_calls)
+                if save_assistant_message:
+                    self.conversation.add_assistant_tool_message(tool_calls)
                 return tool_calls
 
         response = response.content
-        self.conversation.add_assistant_message(response)
+        if save_assistant_message:
+            self.conversation.add_assistant_message(response)
         return response
 
     def edit_system_message(self, system_prompt_kwargs: Dict[str, Any]):
