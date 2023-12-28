@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict
+from typing import Dict, Tuple
 from time import sleep
 from queue import Queue
 
@@ -32,6 +32,7 @@ from democratic_agent.utils.communication_protocols import (
     Client,
     Server,
     ActionClient,
+    GoalHandle,
 )
 
 LOG = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class Assistant:
     def __init__(self, assistant_ip: str):
         self.assistant_ip = assistant_ip
         self.requests: Dict[str, Request] = {}  # TODO: Get them from database
+        self.active_goal_handles: Dict[str, Tuple[str, GoalHandle]] = {}
         self.chat = Chat(
             module_name="user",
             system_prompt_kwargs={"requests": self.get_requests()},
@@ -134,6 +136,7 @@ class Assistant:
         Send a request to the system, make a very explicit request.
 
         Args:
+            user_name (str): The name of the user which is running the system.
             request (str): The request the system needs to solve.
 
         Returns:
@@ -141,7 +144,8 @@ class Assistant:
         """
 
         new_request = Request(request=request)
-        self.system_action_clients[user_name].send_goal(new_request)
+        goal_handle = self.system_action_clients[user_name].send_goal(new_request)
+        self.active_goal_handles[new_request.get_id()] = (user_name, goal_handle)
         self.update_request(new_request)
         print(colored(f"Request: {request}", "yellow"))
         return "Request sent."
@@ -219,16 +223,17 @@ class Assistant:
     def update_request(self, request: Request):
         self.requests[request.get_id()] = request
         feedback = request.get_feedback()
+        print(f"DEBUG-REQUEST:{request.request} with feedback: {feedback}")
         if request.get_status() == RequestStatus.WAITING_USER_FEEDBACK:
             # Ask for feedback
             print(
                 f'{colored("Assistant request:", "red")} {request.request} requires feedback: {feedback}'
             )
             self.chat.conversation.add_assistant_message(
-                f"Request: {request.request} requires feedback: {feedback}"
+                f"Request: {request.request}\n\nRequires feedback: {feedback}"
             )
             self.communicate_with_users(
-                f"Request: {request.request} requires feedback: {feedback}"
+                f"Request: {request.request}\n\nrequires feedback: {feedback}"
             )
 
             # Wait for feedback TODO: FIX ME.
@@ -243,7 +248,34 @@ class Assistant:
             request.update_status(
                 status=RequestStatus.IN_PROGRESS, feedback=user_message.message
             )
-            self.send_request(request)
+
+            # Update request
+            user_name, goal_handle = self.active_goal_handles[request.get_id()]
+            goal_handle.action = request
+            self.system_action_clients[user_name].update_goal(goal_handle)
+        elif request.get_status() == RequestStatus.SUCCESS:
+            user_name, goal_handle = self.active_goal_handles[request.get_id()]
+            message = f"Request with id: {request.get_id()} succeeded with feedback: {request.get_feedback()}"
+            user_message = UserMessage(
+                user_name=f"{user_name}_system",
+                message=message,
+            )
+            self.requests.pop(request.get_id())
+            self.active_goal_handles.pop(request.get_id())
+            self.user_messages.put(user_message)
+            print(colored(f"{user_name}_system: ", "green") + message)
+        elif request.get_status() == RequestStatus.FAILURE:
+            user_name, goal_handle = self.active_goal_handles[request.get_id()]
+            message = f"Request with id: {request.get_id()} failed with feedback: {request.get_feedback()}"
+            user_message = UserMessage(
+                user_name=f"{user_name}_system",
+                message=message,
+            )
+            self.requests.pop(request.get_id())
+            self.active_goal_handles.pop(request.get_id())
+            self.user_messages.put(user_message)
+            print(colored(f"{user_name}_system: ", "red") + message)
+
         self.update_system()
 
     def run(self):
@@ -270,9 +302,9 @@ class Assistant:
                     self.running = False
                 else:
                     self.tools_manager.execute_tools(
-                        chat=self.chat,
                         tools_call=tools_call,
                         functions=self.assistant_functions,
+                        chat=self.chat,
                     )
 
     def wait_user_message(self):

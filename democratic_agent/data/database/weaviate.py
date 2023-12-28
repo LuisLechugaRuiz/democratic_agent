@@ -23,6 +23,22 @@ DEF_SCHEMA = {
                 },
             ],
         },
+        {
+            "class": "Tool",
+            "description": "Tool information",
+            "properties": [
+                {
+                    "name": "name",
+                    "dataType": ["text"],
+                    "description": "The name of the tool",
+                },
+                {
+                    "name": "description",
+                    "dataType": ["text"],
+                    "description": "The description of the tool",
+                },
+            ],
+        },
     ]
 }
 
@@ -116,6 +132,51 @@ class WeaviateDB(object):
             num_relevant=num_relevant,
         )
         return most_similar_contents
+
+    def search_tool(self, query: str, num_relevant=2, certainty=0.7):
+        query_vector = self.get_ada_embedding(query)
+        # Get the most similar content
+        most_similar_contents = self._get_relevant(
+            vector=({"vector": query_vector}),  # TODO: add "certainty": certainty
+            class_name="Tool",
+            fields=["name", "description"],
+            num_relevant=num_relevant,
+        )
+        return most_similar_contents
+
+    def store_tool(self, name: str, description: str):
+        """Store a tool in the database in case it doesn't exist yet"""
+
+        try:
+            query = (
+                self.client.query.get("Tool", ["name", "description"])
+                .with_limit(1)
+                .with_additional(["certainty", "id"])
+            )
+            tool_name_filter = {
+                "path": ["name"],
+                "operator": "Equal",
+                "valueText": name,
+            }
+            query.with_where(tool_name_filter)
+            results = query.do()
+
+            if len(results["data"]["Get"]["Tool"]) > 0:
+                return results["data"]["Get"]["Tool"][0]["_additional"]["id"]
+            else:
+                info_vector = self.get_ada_embedding(description)
+                tool_uuid = self.client.data_object.create(
+                    data_object={
+                        "name": name,
+                        "description": description,
+                    },
+                    class_name="Tool",
+                    vector=info_vector,
+                )
+                return tool_uuid
+        except Exception as err:
+            print(f"Unexpected error {err=}, {type(err)=}")
+            return None
 
     def store(
         self,

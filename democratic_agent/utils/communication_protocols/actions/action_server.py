@@ -33,7 +33,13 @@ class ServerGoalHandle(GoalHandle):
 
 
 class ActionServer:
-    def __init__(self, server_address: str, callback: Callable, action_class: Action):
+    def __init__(
+        self,
+        server_address: str,
+        callback: Callable,
+        update_callback: Callable,
+        action_class: Action,
+    ):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.DEALER)
         self.socket.bind(server_address)
@@ -44,6 +50,7 @@ class ActionServer:
         self.active_goals: Dict[str, GoalHandle] = {}
         self.action_class = action_class
         self.callback = callback
+        self.update_callback = update_callback
 
         # Use a queue to store incoming goals
         self.goal_queue: Queue[GoalHandle] = Queue()
@@ -63,12 +70,22 @@ class ActionServer:
             socks = dict(self.poller.poll())  # No timeout
             if socks.get(self.socket) == zmq.POLLIN:
                 message = self.socket.recv_string()
-
-                # Create a GoalHandle and enqueue it
-                goal_handle = ServerGoalHandle.from_json(
-                    message, self.action_class, self.publish_feedback
-                )
-                self.goal_queue.put(goal_handle)
+                if message.startswith("update "):
+                    # Extract the goal ID and update data
+                    _, goal_handle_message = message.split(" ", 1)
+                    goal_handle = ServerGoalHandle.from_json(
+                        goal_handle_message, self.action_class, self.publish_feedback
+                    )
+                    # Check if this goal ID exists in active goals
+                    if goal_handle.goal_id in self.active_goals:
+                        self.update_goal(goal_handle)
+                else:
+                    # Handle new goal
+                    goal_handle = ServerGoalHandle.from_json(
+                        message, self.action_class, self.publish_feedback
+                    )
+                    self.goal_queue.put(goal_handle)
+                    self.active_goals[goal_handle.goal_id] = goal_handle
 
     def process_goals(self):
         while True:
@@ -83,6 +100,12 @@ class ActionServer:
             ]:
                 goal_handle.status = GoalHandleStatus.COMPLETED
             self.publish_feedback(goal_handle)
+
+    def update_goal(self, updated_goal_handle: ServerGoalHandle):
+        self.active_goals[updated_goal_handle.goal_id] = updated_goal_handle
+        # Trigger the update callback
+        if self.update_callback:
+            self.update_callback(updated_goal_handle)
 
     def publish_feedback(self, update: ServerGoalHandle):
         self.socket.send_string(update.to_json())

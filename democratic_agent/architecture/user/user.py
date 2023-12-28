@@ -43,7 +43,6 @@ class User:
         self.incoming_messages: List[UserMessage] = []
 
     def receive_assistant_message(self, message: str):
-        print(f"RECEIVING MESSAGE: {message}")
         self.incoming_messages.append(UserMessage.from_json(message))
 
     def send_message(self, message: str):

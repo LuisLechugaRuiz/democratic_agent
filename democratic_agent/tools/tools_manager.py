@@ -1,10 +1,12 @@
+import glob
 import json
 import importlib
 import inspect
 from logging import getLogger
 from pathlib import Path
 import os
-from typing import Callable, List
+import warnings
+from typing import Callable, List, Optional
 from openai.types.chat import ChatCompletionMessageToolCall
 
 from democratic_agent.architecture.helpers.tool import Tool
@@ -14,39 +16,25 @@ from democratic_agent.chat.chat import Chat
 LOG = getLogger(__name__)
 
 
-# TODO: Move tools to a inner folder.
 class ToolsManager:
     def __init__(self):
         self.module_path = "democratic_agent.tools.tools"
         self.tools_folder = Path(__file__).parent / "tools"
         self.default_tools = []
-        # Here we should retrieve the embedded tools, create it based on the folder or retrieve from db? - we need a SSoT.
         # Ideally the data retrieved after executing tool should be send online to our database (after filtering), for future fine-tuning, so we can improve the models and provide them back to the community.
 
-    def fetch_tools(self, potential_tools: List[str]) -> List[Callable]:
-        """TODO: Fetch from database the tools that are similar to the step."""
-
-        tools = self.default_tools.copy()
-
-        # Dummy for now, but should search for the tool by similarity step - tools description.
-        retrieved_tools = [
-            "send_whatsapp_message"
-        ]  # TODO: REMOVE ME!! Only for testing for now.
-        tools.extend(retrieved_tools)
-        return tools
-
-    # TODO: Log here that the function already exists. Should not append as affordance should verify this.
     def save_tool(self, function, name):
         path = os.path.join(self.tools_folder / f"{name}.py")
         with open(path, "w") as f:
             f.write(function)
-            self.default_tools.append(
-                name
-            )  # TODO: REMOVE ME!! This is only to test newly created tools until we implement the DB.
 
     def get_tool(self, name: str) -> Callable:
-        # Dynamically import the module
-        module = importlib.import_module(f"{self.module_path}.{name}")
+        with warnings.catch_warnings():
+            # Filter ResourceWarnings to ignore unclosed file objects
+            warnings.filterwarnings("ignore", category=ResourceWarning)
+
+            # Dynamically import the module
+            module = importlib.import_module(f"{self.module_path}.{name}")
 
         # Retrieve the function with the same name as the module
         tool_function = getattr(module, name, None)
@@ -56,11 +44,25 @@ class ToolsManager:
 
         return tool_function
 
+    def get_all_tools(self) -> List[str]:
+        module_names = []
+
+        # Use glob to find all Python files in the specified folder
+        python_files = glob.glob(os.path.join(self.tools_folder, "*.py"))
+        python_files = [file for file in python_files if "__init__" not in file]
+
+        for file_path in python_files:
+            # Remove the file extension and path to get the module name
+            module_name = os.path.splitext(os.path.basename(file_path))[0]
+            module_names.append(module_name)
+
+        return module_names
+
     def execute_tools(
         self,
-        chat: Chat,
         tools_call: List[ChatCompletionMessageToolCall],
         functions: List[Callable],
+        chat: Optional[Chat] = None,
     ) -> List[Tool]:
         functions_dict = {}
         for function in functions:
@@ -72,7 +74,13 @@ class ToolsManager:
                 function_name = tool_call.function.name
                 function = functions_dict[function_name]
             except KeyError:
-                raise Exception("Function name doesn't exist...")
+                if chat:
+                    chat.add_tool_feedback(
+                        id=tool_call.id,
+                        message="Function name doesn't exist, if you want to use a new tool first select it please.",
+                    )
+                    print(f"Function name: {function_name} doesn't exist...")
+                    continue
 
             signature = inspect.signature(function)
             args = [param.name for param in signature.parameters.values()]
@@ -80,12 +88,17 @@ class ToolsManager:
             arguments = json.loads(tool_call.function.arguments)
             call_arguments_dict = {}
             for arg in args:
+                # Check if the argument has a default value
+                default_value = signature.parameters[arg].default
                 arg_value = arguments.get(arg, None)
-                if not arg_value:
+                if arg_value is None and default_value is inspect.Parameter.empty:
                     raise Exception(
                         f"Function {function_name} requires argument {arg} but it is not provided."
                     )
-                call_arguments_dict[arg] = arg_value
+                # Use the provided value or the default value
+                call_arguments_dict[arg] = (
+                    arg_value if arg_value is not None else default_value
+                )
             try:
                 response = function(**call_arguments_dict)
                 args_string = ", ".join(
@@ -96,6 +109,7 @@ class ToolsManager:
                 raise Exception(
                     f"Error while executing function {function_name} with arguments {call_arguments_dict}. Error: {e}"
                 )
-            chat.add_tool_feedback(id=tool_call.id, message=response)
+            if chat:
+                chat.add_tool_feedback(id=tool_call.id, message=response)
             tools_result.append(Tool(name=function_name, feedback=response))
         return tools_result
