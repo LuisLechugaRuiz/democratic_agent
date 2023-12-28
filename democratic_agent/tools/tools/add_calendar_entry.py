@@ -4,6 +4,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import tzlocal
+from typing import List
 
 
 # Assuming get_private_data_path is a function that returns the path to a secure storage location
@@ -21,7 +22,7 @@ def add_calendar_entry(
     description: str,
     start_time: str,
     end_time: str,
-    attendees: list = None,
+    attendees: List[str] = [],
 ):
     """Add an event to the user's Google Calendar.
 
@@ -31,7 +32,7 @@ def add_calendar_entry(
         description (str): The description of the event.
         start_time (str): The start time of the event in 'YYYY-MM-DDTHH:MM:SS+HH:MM' format.
         end_time (str): The end time of the event in 'YYYY-MM-DDTHH:MM:SS+HH:MM' format.
-        attendees (list, optional): A list of email addresses to invite to the event.
+        attendees (List[str]): A list with the email addresses to invite to the event, by default []. Will be added as {'email': attendee}
     """
 
     SCOPES = ["https://www.googleapis.com/auth/calendar"]

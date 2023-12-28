@@ -120,7 +120,10 @@ class Assistant:
     def user_message_callback(self, user_message: str):
         # Save user message in a queue.
         message = UserMessage.from_json(user_message)
-        print(f"User {message.user_name} message: {message.message}")
+        print(
+            colored(f"User {message.user_name}: ", "red")
+            + f"message: {message.message}"
+        )
         self.user_messages.put(message)
 
         # Broadcast to all users
@@ -164,7 +167,7 @@ class Assistant:
         Returns:
             str
         """
-        print(f'{colored("Assistant:", "red")} {message}')
+        print(f'{colored("Assistant:", "blue")} {message}')
         assistant_message = UserMessage(user_name="Aware", message=message)
         self.broadcast_message(assistant_message.to_json())
         return "Message sent."
@@ -183,9 +186,6 @@ class Assistant:
         data = self.database_clients[user_name].send(
             topic=f"{user_name}_{DEF_SEARCH_DATABASE}", message=query
         )
-        # data = input(
-        #     f"Query: {query}, please add the info for testing until the database is implemented: "
-        # )
         return f"Search returned: {data}"
 
     def store_user_info(self, user_name: str, info: str):
